@@ -12,9 +12,9 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class RedisWrapper {
 
-    private RedisTemplate<String, Object> redisTemplate;
+    private final RedisTemplate<String, Object> redisTemplate;
 
-    private long expireTime;
+    private final long expireTime;
 
     @Autowired
     public RedisWrapper(RedisTemplate<String, Object> redisTemplate,

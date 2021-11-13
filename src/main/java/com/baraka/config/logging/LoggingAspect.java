@@ -9,33 +9,57 @@ import org.aspectj.lang.reflect.CodeSignature;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
+import java.util.Objects;
+
 @Aspect
 @Component
 @Slf4j
 public class LoggingAspect {
 
-    @Around("execution(* com.baraka.controller.*.*(..))")
-    public Object aroundAdvice(ProceedingJoinPoint joinPoint) throws Throwable {
+    @Around("execution(* com.baraka.service.*.*(..))")
+    public Object aroundAdviceService(ProceedingJoinPoint joinPoint) throws Throwable {
 
-        long start = System.currentTimeMillis();
         Object output;
-        String methodName = joinPoint.getSignature().getName();
-        String className = joinPoint.getTarget().getClass().toString();
+        long start = logEntry(joinPoint);
+        try {
+            output = joinPoint.proceed();
+        } finally {
+            logExit(joinPoint, start);
+        }
+        return output;
+    }
+
+    @Around("execution(* com.baraka.controller.*.*(..))")
+    public Object aroundAdviceController(ProceedingJoinPoint joinPoint) throws Throwable {
+
+        long start = logEntry(joinPoint);
+        Object output;
         ObjectMapper mapper = new ObjectMapper();
         String inputParams = this.getInputArgs(joinPoint, mapper);
-        log.info("{} :: {}() - Entry", className, methodName);
         logRequest(inputParams);
         try {
             output = joinPoint.proceed();
             logResponse(output);
         } finally {
-            long elapsedTime = System.currentTimeMillis() - start;
-            log.info("{} -> Method execution time: {} milliseconds.", joinPoint.getSignature().getName(),
-                    elapsedTime);
-            log.info("{}.{}() - Exit", joinPoint.getSignature().getDeclaringTypeName(),
-                    joinPoint.getSignature().getName());
+            logExit(joinPoint, start);
         }
         return output;
+    }
+
+    private long logEntry(ProceedingJoinPoint joinPoint) {
+        long start = System.currentTimeMillis();
+        String methodName = joinPoint.getSignature().getName();
+        String className = joinPoint.getTarget().getClass().toString();
+        log.info("{} :: {}() - Entry", className, methodName);
+        return start;
+    }
+
+    private void logExit(ProceedingJoinPoint joinPoint, long start) {
+        long elapsedTime = System.currentTimeMillis() - start;
+        log.info("{} -> Method execution time: {} milliseconds.", joinPoint.getSignature().getName(),
+                elapsedTime);
+        log.info("{}.{}() - Exit", joinPoint.getSignature().getDeclaringTypeName(),
+                joinPoint.getSignature().getName());
     }
 
     private void logRequest(String inputParams) {
@@ -48,12 +72,15 @@ public class LoggingAspect {
     }
 
     private void logResponse(Object output) {
-        log.info(
-                "---------------------------------------------------------------- RESPONSE START ----------------------------------------------------------------");
-        log.info("Response Status : {} ", ((ResponseEntity<?>) output).getStatusCode());
-        log.info("Response Object : {} ", ((ResponseEntity<?>) output).getBody().toString());
-        log.info(
-                "---------------------------------------------------------------- RESPONSE END    ----------------------------------------------------------------");
+        if (Objects.nonNull(output)) {
+            log.info(
+                    "---------------------------------------------------------------- RESPONSE START ----------------------------------------------------------------");
+            log.info("Response Status : {} ", ((ResponseEntity<?>) output).getStatusCode());
+            log.info("Response Object : {} ", Objects.requireNonNull(((ResponseEntity<?>) output).getBody()).toString());
+            log.info(
+                    "---------------------------------------------------------------- RESPONSE END    ----------------------------------------------------------------");
+
+        }
     }
 
     private String getInputArgs(ProceedingJoinPoint pjt, ObjectMapper mapper) {
