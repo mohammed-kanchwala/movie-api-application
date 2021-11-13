@@ -10,7 +10,7 @@ import java.util.List;
 public class OmdbResponse implements Serializable {
 
     @JsonAlias("Search")
-    private List<MovieDetails> movieDetails;
+    private List<OmdbMovieDetails> movieDetails;
     private Integer totalResults;
     @JsonAlias("Response")
     private Boolean response;
