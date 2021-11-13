@@ -1,17 +1,17 @@
 package com.baraka.model;
 
-import java.util.List;
-
 import com.fasterxml.jackson.annotation.JsonAlias;
-
 import lombok.Data;
 
+import java.io.Serializable;
+import java.util.List;
+
 @Data
-public class MovieResponse {
+public class MovieResponse implements Serializable {
 
 	@JsonAlias("Search")
-	private List<MovieDetails> search;
-	private String totalResults;
+	private List<MovieDetails> movieDetails;
+	private Integer totalResults;
 	@JsonAlias("Response")
-	private String response;
+	private Boolean response;
 }

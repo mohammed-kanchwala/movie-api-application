@@ -1,52 +1,98 @@
 package com.baraka.service.impl;
 
+import com.baraka.constants.ApplicationConstants;
+import com.baraka.model.MovieDetails;
+import com.baraka.model.MovieResponse;
+import com.baraka.service.MovieService;
+import com.baraka.util.RedisWrapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.baraka.constants.ApplicationConstants;
-import com.baraka.model.MovieResponse;
-import com.baraka.service.MovieService;
-
-import lombok.extern.slf4j.Slf4j;
+import java.util.List;
+import java.util.Objects;
 
 @Service
 @Slf4j
+@Cacheable
 public class MovieServiceImpl implements MovieService {
 
-	@Autowired
-	private RestTemplate restTemplate;
+    private RestTemplate restTemplate;
 
-	@Value("${omdb.url}")
-	private String omdbURL;
+    private String omdbURL;
 
-	@Value("${omdb.key}")
-	private String apiKey;
+    private String apiKey;
 
+    private RedisWrapper redisWrapper;
 
-	@Override
-	public MovieResponse searchMovie(String keyword) {
-		HttpHeaders headers = new HttpHeaders();
-		headers.set("Accept", MediaType.APPLICATION_JSON_VALUE);
+    @Autowired
+    public MovieServiceImpl(RestTemplate restTemplate, @Value("${omdb.url}") String omdbURL,
+                            @Value("${omdb.key}") String apiKey, RedisWrapper redisWrapper) {
+        this.restTemplate = restTemplate;
+        this.omdbURL = omdbURL;
+        this.apiKey = apiKey;
+        this.redisWrapper = redisWrapper;
+    }
 
-		UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(omdbURL)
-				.queryParam(ApplicationConstants.PARAMS.S_KEY, keyword)
-				.queryParam(ApplicationConstants.PARAMS.API_KEY, apiKey)
-				.queryParam(ApplicationConstants.PARAMS.PAGE, "1");
+    @Override
+    public MovieResponse searchMovie(String keyword, Integer page, Integer size) {
 
-		HttpEntity<?> entity = new HttpEntity<>(headers);
+        String redisKey = keyword + "_" + page;
 
-		HttpEntity<MovieResponse> response = restTemplate.exchange(builder.toUriString(),
-				HttpMethod.GET, entity, MovieResponse.class);
+        if (redisWrapper.hasKey(redisKey)) {
+            return redisWrapper.getValueFromRedis(redisKey);
+        }
 
-		log.debug("HTTP Response: {}", response);
+        MovieResponse movieResponse = new MovieResponse();
+        int apiPage = (page * 2) - 1;
+        int counter = 0;
+        for (int i = 0; i < size / 10; i++) {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set(ApplicationConstants.Headers.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
 
-		return response.getBody();
-	}
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(omdbURL)
+                    .queryParam(ApplicationConstants.Params.S_KEY, keyword)
+                    .queryParam(ApplicationConstants.Params.API_KEY, apiKey)
+                    .queryParam(ApplicationConstants.Params.PAGE, counter == 0 ? apiPage : apiPage++);
+
+            counter++;
+            ResponseEntity<MovieResponse> response = callOmdbApi(headers, builder);
+
+            if (Objects.nonNull(response.getBody()) && Objects.equals(response.getBody().getResponse(), Boolean.TRUE)) {
+                MovieResponse apiResponse = response.getBody();
+                createMovieResponse(movieResponse, response.getBody());
+                if (Objects.equals(apiResponse.getResponse(), Boolean.FALSE) || apiResponse.getTotalResults() <= 10 || apiResponse.getMovieDetails().size() < 10) {
+                    break;
+                }
+            }
+        }
+
+        redisWrapper.saveToRedis(redisKey, movieResponse);
+        return movieResponse;
+    }
+
+    private ResponseEntity<MovieResponse> callOmdbApi(HttpHeaders headers,
+                                                      UriComponentsBuilder builder) {
+        HttpEntity<?> entity = new HttpEntity<>(headers);
+        return restTemplate.exchange(builder.toUriString(),
+                HttpMethod.GET, entity, MovieResponse.class);
+    }
+
+    private void createMovieResponse(MovieResponse movieResponse, MovieResponse response) {
+        if (Objects.nonNull(movieResponse.getMovieDetails()) && !movieResponse.getMovieDetails().isEmpty()) {
+            List<MovieDetails> movieDetailsList = movieResponse.getMovieDetails();
+            movieDetailsList.addAll(response.getMovieDetails());
+            movieResponse.setMovieDetails(movieDetailsList);
+        } else {
+            movieResponse.setMovieDetails(response.getMovieDetails());
+        }
+        movieResponse.setTotalResults(response.getTotalResults() / 2);
+        movieResponse.setResponse(true);
+    }
+
 }

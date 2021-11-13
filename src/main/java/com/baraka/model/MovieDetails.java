@@ -1,11 +1,12 @@
 package com.baraka.model;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
-
 import lombok.Data;
 
+import java.io.Serializable;
+
 @Data
-public class MovieDetails {
+public class MovieDetails implements Serializable {
 
 	@JsonAlias("Title")
 	private String title;
