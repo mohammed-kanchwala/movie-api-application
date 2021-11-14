@@ -1,8 +1,8 @@
 package com.baraka.model;
 
-import lombok.Data;
-
 import java.io.Serializable;
+
+import lombok.Data;
 
 @Data
 public class MovieDetails implements Serializable {

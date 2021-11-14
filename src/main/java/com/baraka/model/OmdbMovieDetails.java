@@ -1,9 +1,10 @@
 package com.baraka.model;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
-import lombok.Data;
-
 import java.io.Serializable;
+
+import com.fasterxml.jackson.annotation.JsonAlias;
+
+import lombok.Data;
 
 @Data
 public class OmdbMovieDetails implements Serializable {

@@ -1,5 +1,7 @@
 package com.baraka.service.impl;
 
+import com.baraka.constants.ApplicationConstants;
+import com.baraka.model.ApiResponse;
 import com.baraka.model.MovieDetails;
 import com.baraka.model.MovieResponse;
 import com.baraka.model.OmdbResponse;
@@ -8,7 +10,6 @@ import com.baraka.service.OmdbService;
 import com.baraka.util.RedisWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -22,15 +23,14 @@ public class MovieServiceImpl implements MovieService {
 
     private final OmdbService omdbService;
 
-    @Autowired
-    public MovieServiceImpl(
+    MovieServiceImpl(
             RedisWrapper redisWrapper, OmdbService omdbService) {
         this.redisWrapper = redisWrapper;
         this.omdbService = omdbService;
     }
 
     @Override
-    public MovieResponse searchMovie(String keyword, Integer page, Integer size) {
+    public ApiResponse searchMovie(String keyword, Integer page, Integer size) {
 
         String redisKey = keyword + "_" + page;
 
@@ -44,17 +44,18 @@ public class MovieServiceImpl implements MovieService {
             OmdbResponse omdbResponse = omdbService.callOmdbApi(keyword, apiPage);
 
             MovieResponse apiResponse = new MovieResponse();
-            BeanUtils.copyProperties(omdbResponse, apiResponse);
-            if (apiResponse.getResponse().equals(Boolean.TRUE)) {
-                createMovieResponse(movieResponse, apiResponse);
+            if (omdbResponse.getResponse().equals(Boolean.FALSE) && Objects.nonNull(omdbResponse.getError())) {
+                return ApiResponse.builder().errorCode(ApplicationConstants.ErrorCode.NOT_FOUND).errorMessage(omdbResponse.getError()).build();
             }
+            BeanUtils.copyProperties(omdbResponse, apiResponse);
+            createMovieResponse(movieResponse, apiResponse);
             if (Objects.equals(apiResponse.getResponse(), Boolean.FALSE) || apiResponse.getTotalResults() <= 10 || apiResponse.getMovieDetails().size() < 10) {
                 break;
             }
         }
 
         redisWrapper.saveToRedis(redisKey, movieResponse);
-        return movieResponse;
+        return ApiResponse.builder().data(movieResponse).build();
     }
 
 
@@ -67,7 +68,7 @@ public class MovieServiceImpl implements MovieService {
             movieResponse.setMovieDetails(response.getMovieDetails());
         }
         movieResponse.setTotalResults(response.getTotalResults() / 2);
-        movieResponse.setResponse(true);
+        movieResponse.setResponse(response.getResponse());
     }
 
 }

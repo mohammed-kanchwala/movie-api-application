@@ -1,8 +1,8 @@
 package com.baraka.service;
 
-import com.baraka.model.MovieResponse;
+import com.baraka.model.ApiResponse;
 
 public interface MovieService {
 
-	MovieResponse searchMovie(String keyword, Integer page, Integer size);
+	ApiResponse searchMovie(String keyword, Integer page, Integer size);
 }

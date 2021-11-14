@@ -30,8 +30,6 @@ public class MovieController {
                             errorMessage("Size should always be multiple of 10").build());
         }
 
-        return ResponseEntity.ok(ApiResponse.builder()
-                .data(movieService.searchMovie(keyword, page, size))
-                .build());
+        return ResponseEntity.ok(movieService.searchMovie(keyword, page, size));
     }
 }
